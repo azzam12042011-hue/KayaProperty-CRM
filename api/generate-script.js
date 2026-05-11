@@ -5,27 +5,51 @@ export const config = {
 // Helper function untuk delay (compatible dengan Edge Runtime)
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-export default async function handler(req, res) {
+export default async function handler(req) {
+  // Handle CORS preflight
+  if (req.method === "OPTIONS") {
+    return new Response(null, {
+      status: 200,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+      },
+    });
+  }
+
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+    return new Response(JSON.stringify({ error: "Method not allowed" }), {
+      status: 405,
+      headers: { "Content-Type": "application/json" },
+    });
   }
   
   let prompt;
   try {
-    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    const body = await req.json();
     prompt = body?.prompt;
   } catch (error) {
     console.error("Parse error:", error.message);
-    return res.status(400).json({ error: "Bad request: Invalid JSON" });
+    return new Response(JSON.stringify({ error: "Bad request: Invalid JSON" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
   }
   
   if (!prompt || typeof prompt !== "string" || prompt.trim().length === 0) {
-    return res.status(400).json({ error: "No prompt provided" });
+    return new Response(JSON.stringify({ error: "No prompt provided" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
   }
   
   const key = process.env.GEMINI_API_KEY;
   if (!key) {
-    return res.status(500).json({ error: "API key tidak ada di Vercel" });
+    return new Response(JSON.stringify({ error: "API key tidak ada di Vercel" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 
   // Model dengan prioritas dan fallback
@@ -104,12 +128,18 @@ export default async function handler(req, res) {
         }
         
         // Success!
-        return res.status(200).json({ 
+        return new Response(JSON.stringify({ 
           text,
           model,
           usage: {
             candidates: data.candidates?.length || 0
           }
+        }), {
+          status: 200,
+          headers: { 
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
         });
         
       } catch (error) {
@@ -131,8 +161,14 @@ export default async function handler(req, res) {
   
   // All models failed
   console.error("All models failed:", lastError);
-  return res.status(500).json({ 
+  return new Response(JSON.stringify({ 
     error: "Semua model Gemini gagal. Cek API key di Vercel.",
     details: lastError.length > 0 ? lastError : "Unknown error"
+  }), {
+    status: 500,
+    headers: { 
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+    },
   });
 }
