@@ -627,15 +627,28 @@ Aturan:
 - Buat seolah unit ini rebutan dan langka`;
 
     try {
-      const res = await fetch("/api/generate-script", {
+      // Gunakan URL lengkap untuk production Vercel, atau relative untuk development
+      const apiUrl = window.location.hostname === 'localhost' 
+        ? '/api/generate-script' 
+        : '/api/generate-script';
+      
+      const res = await fetch(apiUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt })
       });
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Server error (${res.status})`);
+      }
+      
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Server error");
       setOutput(data.text || "Gagal generate script.");
-    } catch (e) { setOutput("❌ Gagal: " + (e.message || "Coba lagi.")); }
+    } catch (e) { 
+      console.error("Generate error:", e);
+      setOutput("❌ Gagal: " + (e.message || "Coba lagi.") + "\n\nPastikan:\n1. API key Gemini sudah diatur di Vercel\n2. Koneksi internet stabil\n3. Prompt tidak terlalu panjang"); 
+    }
     setLoading(false);
   };
 
