@@ -10,5 +10,4 @@ dist/
 
 # Vite temporary files
 node_modules/.vite/deps_temp_*/
-
 ```
