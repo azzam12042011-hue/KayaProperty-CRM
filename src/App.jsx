@@ -1,14 +1,79 @@
 import { useState, useEffect, useCallback } from "react";
+import { supabase } from "./supabaseClient";
 
-// ─── STORAGE HELPERS (localStorage — works on any browser/device) ─────────────
-const STORAGE_KEYS = { leads: "kaya:leads", properties: "kaya:properties", activities: "kaya:activities" };
+// ─── AUTH STATE & MULTI-USER SUPPORT ──────────────────────────────────────
+const STORAGE_KEYS = { 
+  leads: "kaya:leads", 
+  properties: "kaya:properties", 
+  activities: "kaya:activities",
+  currentUser: "kaya:currentUser"
+};
 
-function loadData(key) {
-  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; }
-  catch { return null; }
+// Auth helper functions
+async function getCurrentUser() {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.user || null;
+  } catch {
+    return null;
+  }
 }
-function saveData(key, data) {
-  try { localStorage.setItem(key, JSON.stringify(data)); } catch {}
+
+async function signOut() {
+  await supabase.auth.signOut();
+}
+
+// Data helpers with Supabase fallback
+async function loadData(key, userId) {
+  // Try Supabase first
+  if (userId) {
+    try {
+      const table = key.split(':')[1];
+      const { data, error } = await supabase
+        .from(table)
+        .select('*')
+        .eq('user_id', userId);
+      
+      if (!error && data) {
+        return data;
+      }
+    } catch {}
+  }
+  
+  // Fallback to localStorage
+  try { 
+    const v = localStorage.getItem(key); 
+    return v ? JSON.parse(v) : null; 
+  } catch { 
+    return null; 
+  }
+}
+
+async function saveData(key, data, userId) {
+  // Save to Supabase if user is logged in
+  if (userId) {
+    try {
+      const table = key.split(':')[1];
+      const cleanData = Array.isArray(data) ? data : [data];
+      
+      for (const item of cleanData) {
+        const record = { ...item, user_id: userId, updated_at: new Date().toISOString() };
+        
+        const { error } = await supabase
+          .from(table)
+          .upsert(record, { onConflict: 'id' });
+        
+        if (error) throw error;
+      }
+    } catch (err) {
+      console.error('Supabase save error:', err);
+    }
+  }
+  
+  // Also save to localStorage as cache
+  try { 
+    localStorage.setItem(key, JSON.stringify(data)); 
+  } catch {}
 }
 
 // ─── SAMPLE DATA ──────────────────────────────────────────────────────────────
@@ -61,19 +126,124 @@ export default function App() {
   const [properties, setProperties] = useState(SAMPLE_PROPERTIES);
   const [activities, setActivities] = useState(SAMPLE_ACTIVITIES);
   const [toast, setToast] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [showLogin, setShowLogin] = useState(false);
 
-  // Persist data
-  useEffect(() => { saveData(STORAGE_KEYS.leads, leads); }, [leads]);
-  useEffect(() => { saveData(STORAGE_KEYS.properties, properties); }, [properties]);
-  useEffect(() => { saveData(STORAGE_KEYS.activities, activities); }, [activities]);
-
-  // Load data (localStorage is synchronous)
+  // Check auth state on mount
   useEffect(() => {
-    const l = loadData(STORAGE_KEYS.leads);
-    const p = loadData(STORAGE_KEYS.properties);
-    const a = loadData(STORAGE_KEYS.activities);
-    if (l) setLeads(l); if (p) setProperties(p); if (a) setActivities(a);
+    checkAuth();
+    
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setCurrentUser(session?.user || null);
+      if (session?.user) {
+        localStorage.setItem(STORAGE_KEYS.currentUser, JSON.stringify({
+          id: session.user.id,
+          email: session.user.email,
+          name: session.user.user_metadata?.name || session.user.email
+        }));
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.currentUser);
+      }
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
+
+  async function checkAuth() {
+    const stored = localStorage.getItem(STORAGE_KEYS.currentUser);
+    if (stored) {
+      try {
+        setCurrentUser(JSON.parse(stored));
+      } catch {}
+    }
+    setLoading(false);
+  }
+
+  async function handleLogin(email, password) {
+    setLoading(true);
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      showToast(error.message, "error");
+      setLoading(false);
+      return false;
+    }
+    if (data.user) {
+      setCurrentUser({
+        id: data.user.id,
+        email: data.user.email,
+        name: data.user.user_metadata?.name || data.user.email
+      });
+      localStorage.setItem(STORAGE_KEYS.currentUser, JSON.stringify({
+        id: data.user.id,
+        email: data.user.email,
+        name: data.user.user_metadata?.name || data.user.email
+      }));
+      setLoading(false);
+      return true;
+    }
+    setLoading(false);
+    return false;
+  }
+
+  async function handleSignup(email, password, name) {
+    setLoading(true);
+    const { data, error } = await supabase.auth.signUp({ 
+      email, 
+      password,
+      options: { data: { name } }
+    });
+    if (error) {
+      showToast(error.message, "error");
+      setLoading(false);
+      return false;
+    }
+    if (data.user) {
+      showToast("Akun berhasil dibuat! Silakan login.", "success");
+      setShowLogin(true);
+    }
+    setLoading(false);
+    return false;
+  }
+
+  async function handleLogout() {
+    await signOut();
+    setCurrentUser(null);
+    localStorage.removeItem(STORAGE_KEYS.currentUser);
+    setPage("dashboard");
+    showToast("Berhasil logout", "success");
+  }
+
+  // Persist data with user context
+  useEffect(() => { 
+    if (currentUser) saveData(STORAGE_KEYS.leads, leads, currentUser.id); 
+  }, [leads, currentUser]);
+  
+  useEffect(() => { 
+    if (currentUser) saveData(STORAGE_KEYS.properties, properties, currentUser.id); 
+  }, [properties, currentUser]);
+  
+  useEffect(() => { 
+    if (currentUser) saveData(STORAGE_KEYS.activities, activities, currentUser.id); 
+  }, [activities, currentUser]);
+
+  // Load data with user context
+  useEffect(() => {
+    if (currentUser) {
+      loadUserData();
+    }
+  }, [currentUser]);
+
+  async function loadUserData() {
+    const l = await loadData(STORAGE_KEYS.leads, currentUser?.id);
+    const p = await loadData(STORAGE_KEYS.properties, currentUser?.id);
+    const a = await loadData(STORAGE_KEYS.activities, currentUser?.id);
+    if (l) setLeads(l); 
+    if (p) setProperties(p); 
+    if (a) setActivities(a);
+  }
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
@@ -86,6 +256,29 @@ export default function App() {
     closing: leads.filter(l => l.status === "Closing ✅").length,
     warm: leads.filter(l => l.status === "Warm 🌤").length,
   };
+
+  // Show login page if not authenticated
+  if (!currentUser && !loading) {
+    return (
+      <div style={{ fontFamily: "'DM Sans', 'Segoe UI', sans-serif", background: "#0a0c10", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#e8e4d9" }}>
+        <LoginPage 
+          onLogin={handleLogin} 
+          onSignup={handleSignup} 
+          loading={loading}
+          showLogin={showLogin}
+          setShowLogin={setShowLogin}
+        />
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div style={{ fontFamily: "'DM Sans', 'Segoe UI', sans-serif", background: "#0a0c10", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#c9a84c" }}>
+        <div className="loader" style={{ width: 40, height: 40 }}></div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ fontFamily: "'DM Sans', 'Segoe UI', sans-serif", background: "#0a0c10", minHeight: "100vh", display: "flex", color: "#e8e4d9" }}>
@@ -154,11 +347,16 @@ export default function App() {
         </nav>
         <div style={{ padding: "16px 20px", borderTop: "1px solid rgba(255,255,255,.06)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 34, height: 34, borderRadius: "50%", background: "linear-gradient(135deg,#c9a84c,#e8c96a)", display: "flex", alignItems: "center", justifyContent: "center", color: "#0a0c10", fontWeight: 700, fontSize: 14 }}>A</div>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "#e8e4d9" }}>Azzam</div>
-              <div style={{ fontSize: 11, color: "rgba(232,228,217,.4)" }}>Agent Properti</div>
+            <div style={{ width: 34, height: 34, borderRadius: "50%", background: "linear-gradient(135deg,#c9a84c,#e8c96a)", display: "flex", alignItems: "center", justifyContent: "center", color: "#0a0c10", fontWeight: 700, fontSize: 14 }}>
+              {currentUser?.name?.charAt(0).toUpperCase() || 'U'}
             </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "#e8e4d9" }}>{currentUser?.name || currentUser?.email}</div>
+              <div style={{ fontSize: 11, color: "rgba(232,228,217,.4)" }}>{currentUser?.email}</div>
+            </div>
+            <button onClick={handleLogout} style={{ background: "none", border: "none", color: "rgba(232,228,217,.4)", cursor: "pointer", padding: 4, borderRadius: 4 }} title="Logout">
+              <svg width={16} height={16} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            </button>
           </div>
         </div>
       </aside>
@@ -942,6 +1140,75 @@ Unit tinggal ${selectedProp.stock} lagi. Jangan sampai lolos! 🔥";
             <div className="script-output">{output}</div>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── LOGIN PAGE COMPONENT ─────────────────────────────────────────────────────
+function LoginPage({ onLogin, onSignup, loading, showLogin, setShowLogin }) {
+  const [isLogin, setIsLogin] = useState(showLogin);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+
+  useEffect(() => {
+    setIsLogin(showLogin);
+  }, [showLogin]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (isLogin) {
+      await onLogin(email, password);
+    } else {
+      await onSignup(email, password, name);
+    }
+  };
+
+  return (
+    <div className="card" style={{ background: "rgba(255,255,255,.03)", border: "1px solid rgba(201,168,76,.2)", borderRadius: 16, padding: 32, width: "min(420px, 94vw)" }}>
+      <div style={{ textAlign: "center", marginBottom: 24 }}>
+        <div style={{ fontSize: 28, fontWeight: 700, color: "#c9a84c", fontFamily: "'Playfair Display', serif", marginBottom: 4 }}>Kaya Property</div>
+        <div style={{ fontSize: 13, color: "rgba(232,228,217,.4)", letterSpacing: ".04em" }}>LOMBOK CRM SYSTEM</div>
+      </div>
+
+      <form onSubmit={handleSubmit}>
+        {!isLogin && (
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ fontSize: 12, color: "rgba(232,228,217,.5)", marginBottom: 6, display: "block" }}>Nama Lengkap</label>
+            <input className="input-field" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Masukkan nama Anda" required={!isLogin} />
+          </div>
+        )}
+
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ fontSize: 12, color: "rgba(232,228,217,.5)", marginBottom: 6, display: "block" }}>Email</label>
+          <input className="input-field" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="nama@email.com" required />
+        </div>
+
+        <div style={{ marginBottom: 20 }}>
+          <label style={{ fontSize: 12, color: "rgba(232,228,217,.5)", marginBottom: 6, display: "block" }}>Password</label>
+          <input className="input-field" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Minimal 6 karakter" required minLength={6} />
+        </div>
+
+        <button className="btn-gold" type="submit" style={{ width: "100%", padding: "12px", fontSize: 15, fontWeight: 600 }} disabled={loading}>
+          {loading ? <><span className="loader" /> Loading...</> : isLogin ? "Login" : "Daftar Akun Baru"}
+        </button>
+      </form>
+
+      <div style={{ marginTop: 20, textAlign: "center", fontSize: 13, color: "rgba(232,228,217,.4)" }}>
+        {isLogin ? "Belum punya akun? " : "Sudah punya akun? "}
+        <button onClick={() => setIsLogin(!isLogin)} style={{ background: "none", border: "none", color: "#c9a84c", cursor: "pointer", fontWeight: 600, textDecoration: "underline" }}>
+          {isLogin ? "Daftar Sekarang" : "Login di Sini"}
+        </button>
+      </div>
+
+      <div style={{ marginTop: 24, padding: "12px 16px", background: "rgba(201,168,76,.08)", border: "1px solid rgba(201,168,76,.15)", borderRadius: 8, fontSize: 12, color: "rgba(232,228,217,.6)" }}>
+        <strong>Cara Setup:</strong>
+        <ol style={{ margin: "8px 0 0 16px", lineHeight: 1.6 }}>
+          <li>Buat project di <a href="https://supabase.com" target="_blank" rel="noreferrer" style={{ color: "#c9a84c" }}>supabase.com</a></li>
+          <li>Copy SQL dari file SETUP_DATABASE.sql</li>
+          <li>Paste URL & Key ke file .env</li>
+        </ol>
       </div>
     </div>
   );
