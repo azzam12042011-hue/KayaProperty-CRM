@@ -1,0 +1,13 @@
+```
+# Dependencies
+node_modules/
+
+# Build artifacts
+dist/
+
+# Environment variables
+.env
+
+# Vite temporary files
+node_modules/.vite/deps_temp_*/
+```

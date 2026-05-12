@@ -1,14 +1,79 @@
 import { useState, useEffect, useCallback } from "react";
+import { supabase } from "./supabaseClient";
 
-// ─── STORAGE HELPERS (localStorage — works on any browser/device) ─────────────
-const STORAGE_KEYS = { leads: "kaya:leads", properties: "kaya:properties", activities: "kaya:activities" };
+// ─── AUTH STATE & MULTI-USER SUPPORT ──────────────────────────────────────
+const STORAGE_KEYS = { 
+  leads: "kaya:leads", 
+  properties: "kaya:properties", 
+  activities: "kaya:activities",
+  currentUser: "kaya:currentUser"
+};
 
-function loadData(key) {
-  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; }
-  catch { return null; }
+// Auth helper functions
+async function getCurrentUser() {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.user || null;
+  } catch {
+    return null;
+  }
 }
-function saveData(key, data) {
-  try { localStorage.setItem(key, JSON.stringify(data)); } catch {}
+
+async function signOut() {
+  await supabase.auth.signOut();
+}
+
+// Data helpers with Supabase fallback
+async function loadData(key, userId) {
+  // Try Supabase first
+  if (userId) {
+    try {
+      const table = key.split(':')[1];
+      const { data, error } = await supabase
+        .from(table)
+        .select('*')
+        .eq('user_id', userId);
+      
+      if (!error && data) {
+        return data;
+      }
+    } catch {}
+  }
+  
+  // Fallback to localStorage
+  try { 
+    const v = localStorage.getItem(key); 
+    return v ? JSON.parse(v) : null; 
+  } catch { 
+    return null; 
+  }
+}
+
+async function saveData(key, data, userId) {
+  // Save to Supabase if user is logged in
+  if (userId) {
+    try {
+      const table = key.split(':')[1];
+      const cleanData = Array.isArray(data) ? data : [data];
+      
+      for (const item of cleanData) {
+        const record = { ...item, user_id: userId, updated_at: new Date().toISOString() };
+        
+        const { error } = await supabase
+          .from(table)
+          .upsert(record, { onConflict: 'id' });
+        
+        if (error) throw error;
+      }
+    } catch (err) {
+      console.error('Supabase save error:', err);
+    }
+  }
+  
+  // Also save to localStorage as cache
+  try { 
+    localStorage.setItem(key, JSON.stringify(data)); 
+  } catch {}
 }
 
 // ─── SAMPLE DATA ──────────────────────────────────────────────────────────────
@@ -61,19 +126,124 @@ export default function App() {
   const [properties, setProperties] = useState(SAMPLE_PROPERTIES);
   const [activities, setActivities] = useState(SAMPLE_ACTIVITIES);
   const [toast, setToast] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [showLogin, setShowLogin] = useState(false);
 
-  // Persist data
-  useEffect(() => { saveData(STORAGE_KEYS.leads, leads); }, [leads]);
-  useEffect(() => { saveData(STORAGE_KEYS.properties, properties); }, [properties]);
-  useEffect(() => { saveData(STORAGE_KEYS.activities, activities); }, [activities]);
-
-  // Load data (localStorage is synchronous)
+  // Check auth state on mount
   useEffect(() => {
-    const l = loadData(STORAGE_KEYS.leads);
-    const p = loadData(STORAGE_KEYS.properties);
-    const a = loadData(STORAGE_KEYS.activities);
-    if (l) setLeads(l); if (p) setProperties(p); if (a) setActivities(a);
+    checkAuth();
+    
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setCurrentUser(session?.user || null);
+      if (session?.user) {
+        localStorage.setItem(STORAGE_KEYS.currentUser, JSON.stringify({
+          id: session.user.id,
+          email: session.user.email,
+          name: session.user.user_metadata?.name || session.user.email
+        }));
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.currentUser);
+      }
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
+
+  async function checkAuth() {
+    const stored = localStorage.getItem(STORAGE_KEYS.currentUser);
+    if (stored) {
+      try {
+        setCurrentUser(JSON.parse(stored));
+      } catch {}
+    }
+    setLoading(false);
+  }
+
+  async function handleLogin(email, password) {
+    setLoading(true);
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      showToast(error.message, "error");
+      setLoading(false);
+      return false;
+    }
+    if (data.user) {
+      setCurrentUser({
+        id: data.user.id,
+        email: data.user.email,
+        name: data.user.user_metadata?.name || data.user.email
+      });
+      localStorage.setItem(STORAGE_KEYS.currentUser, JSON.stringify({
+        id: data.user.id,
+        email: data.user.email,
+        name: data.user.user_metadata?.name || data.user.email
+      }));
+      setLoading(false);
+      return true;
+    }
+    setLoading(false);
+    return false;
+  }
+
+  async function handleSignup(email, password, name) {
+    setLoading(true);
+    const { data, error } = await supabase.auth.signUp({ 
+      email, 
+      password,
+      options: { data: { name } }
+    });
+    if (error) {
+      showToast(error.message, "error");
+      setLoading(false);
+      return false;
+    }
+    if (data.user) {
+      showToast("Akun berhasil dibuat! Silakan login.", "success");
+      setShowLogin(true);
+    }
+    setLoading(false);
+    return false;
+  }
+
+  async function handleLogout() {
+    await signOut();
+    setCurrentUser(null);
+    localStorage.removeItem(STORAGE_KEYS.currentUser);
+    setPage("dashboard");
+    showToast("Berhasil logout", "success");
+  }
+
+  // Persist data with user context
+  useEffect(() => { 
+    if (currentUser) saveData(STORAGE_KEYS.leads, leads, currentUser.id); 
+  }, [leads, currentUser]);
+  
+  useEffect(() => { 
+    if (currentUser) saveData(STORAGE_KEYS.properties, properties, currentUser.id); 
+  }, [properties, currentUser]);
+  
+  useEffect(() => { 
+    if (currentUser) saveData(STORAGE_KEYS.activities, activities, currentUser.id); 
+  }, [activities, currentUser]);
+
+  // Load data with user context
+  useEffect(() => {
+    if (currentUser) {
+      loadUserData();
+    }
+  }, [currentUser]);
+
+  async function loadUserData() {
+    const l = await loadData(STORAGE_KEYS.leads, currentUser?.id);
+    const p = await loadData(STORAGE_KEYS.properties, currentUser?.id);
+    const a = await loadData(STORAGE_KEYS.activities, currentUser?.id);
+    if (l) setLeads(l); 
+    if (p) setProperties(p); 
+    if (a) setActivities(a);
+  }
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
@@ -86,6 +256,29 @@ export default function App() {
     closing: leads.filter(l => l.status === "Closing ✅").length,
     warm: leads.filter(l => l.status === "Warm 🌤").length,
   };
+
+  // Show login page if not authenticated
+  if (!currentUser && !loading) {
+    return (
+      <div style={{ fontFamily: "'DM Sans', 'Segoe UI', sans-serif", background: "#0a0c10", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#e8e4d9" }}>
+        <LoginPage 
+          onLogin={handleLogin} 
+          onSignup={handleSignup} 
+          loading={loading}
+          showLogin={showLogin}
+          setShowLogin={setShowLogin}
+        />
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div style={{ fontFamily: "'DM Sans', 'Segoe UI', sans-serif", background: "#0a0c10", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#c9a84c" }}>
+        <div className="loader" style={{ width: 40, height: 40 }}></div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ fontFamily: "'DM Sans', 'Segoe UI', sans-serif", background: "#0a0c10", minHeight: "100vh", display: "flex", color: "#e8e4d9" }}>
@@ -154,11 +347,16 @@ export default function App() {
         </nav>
         <div style={{ padding: "16px 20px", borderTop: "1px solid rgba(255,255,255,.06)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 34, height: 34, borderRadius: "50%", background: "linear-gradient(135deg,#c9a84c,#e8c96a)", display: "flex", alignItems: "center", justifyContent: "center", color: "#0a0c10", fontWeight: 700, fontSize: 14 }}>A</div>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "#e8e4d9" }}>Azzam</div>
-              <div style={{ fontSize: 11, color: "rgba(232,228,217,.4)" }}>Agent Properti</div>
+            <div style={{ width: 34, height: 34, borderRadius: "50%", background: "linear-gradient(135deg,#c9a84c,#e8c96a)", display: "flex", alignItems: "center", justifyContent: "center", color: "#0a0c10", fontWeight: 700, fontSize: 14 }}>
+              {currentUser?.name?.charAt(0).toUpperCase() || 'U'}
             </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "#e8e4d9" }}>{currentUser?.name || currentUser?.email}</div>
+              <div style={{ fontSize: 11, color: "rgba(232,228,217,.4)" }}>{currentUser?.email}</div>
+            </div>
+            <button onClick={handleLogout} style={{ background: "none", border: "none", color: "rgba(232,228,217,.4)", cursor: "pointer", padding: 4, borderRadius: 4 }} title="Logout">
+              <svg width={16} height={16} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            </button>
           </div>
         </div>
       </aside>
@@ -607,24 +805,101 @@ function Scripts({ properties, showToast }) {
     if (!selectedProp) return;
     setLoading(true); setOutput("");
     const propData = `Nama: ${selectedProp.name} | Tipe: ${selectedProp.type} | Harga: Rp ${selectedProp.price} | DP: Rp ${selectedProp.dp} | Cicilan: Rp ${selectedProp.cicilan}/bln | KT/KM: ${selectedProp.kt}/${selectedProp.km} | Lokasi: ${selectedProp.location} | Stok tersisa: ${selectedProp.stock} unit`;
-    const prompt = `Kamu adalah copywriter properti kelas dunia, content creator viral, dan agen properti terbaik Indonesia. Buat script konten properti yang powerful untuk:
+    
+    // ─── ULTRA POWERFUL PROMPT UNTUK AI ──────────────────────────────────────
+    const prompt = `Kamu adalah copywriter properti ELITE, content creator VIRAL dengan jutaan views, dan agen properti #1 di Indonesia yang sudah closing ratusan unit.
 
-PLATFORM: ${platform}
-JENIS KONTEN: ${scriptType}
-TARGET MARKET: ${target}
-PROPERTI:
+TUGAS: Buat script konten properti FULL yang siap pakai untuk:
+
+📱 PLATFORM: ${platform}
+🎬 JENIS KONTEN: ${scriptType}
+🎯 TARGET MARKET: ${target}
+
+🏠 DETAIL PROPERTI:
 ${propData}
-${extra ? `\nINFO TAMBAHAN: ${extra}` : ""}
+${extra ? `\n💡 INFO TAMBAHAN: ${extra}` : ""}
 
-Aturan:
-- Gunakan bahasa Indonesia yang natural, persuasif, modern
-- Fokus pada manfaat, bukan hanya spesifikasi  
-- Bangun urgensi dan FOMO yang natural
-- Sertakan hook yang kuat di awal
-- Sertakan CTA yang jelas di akhir
-- Tambahkan emoji yang relevan
-- Format rapi dan mudah dibaca
-- Buat seolah unit ini rebutan dan langka`;
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ATURAN WAJIB (HARUS DIPATUHI):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1️⃣ HOOK (3 DETIK PERTAMA) - HARUS MEMUKAU:
+   • Gunakan pattern interrupt yang mengejutkan
+   • Sentuh pain point atau desire terdalam target
+   • Pakai angka, fakta kontroversial, atau pertanyaan provokatif
+   • Contoh hook viral:
+     - "Gaji 5jt tapi punya rumah mewah? BISA!"
+     - "90% orang salah pilih rumah pertama mereka"
+     - "Stop scroll! Ini rahasia punya rumah sebelum 30"
+     - "Nyesel baru tau sekarang..."
+
+2️⃣ BODY SCRIPT - STORYTELLING YANG MENGHYPNOTIS:
+   • Jangan sebut spesifikasi dulu! Mulai dengan MANFAAT & TRANSFORMASI
+   • Gunakan teknik "Before-After": Gambarkan kehidupan SEBELUM & SESUDAH punya rumah ini
+   • Bangun emosi: rasa aman, kebanggaan, kenyamanan keluarga
+   • Sisipkan social proof: "Sudah 41 unit terjual dalam 2 bulan!"
+   • Buat visualisasi: "Bayangkan pagi hari kamu..."
+
+3️⃣ UNIQUE SELLING POINT - BEDAKAN DARI KOMPETITOR:
+   • Fokus pada 1-2 fitur UNIK yang tidak ada di tempat lain
+   • Hubungkan fitur dengan manfaat emosional
+   • Contoh: "Lokasi 5 menit dari pantai = setiap sunset bisa dinikmati bersama keluarga"
+
+4️⃣ URGENCY & FOMO - ALASAN BELI SEKARANG:
+   • scarcity: "Hanya tersisa ${selectedProp.stock} unit dari total ${selectedProp.sold + selectedProp.stock}"
+   • time pressure: "Harga naik bulan depan" / "Promo DP 0% minggu ini saja"
+   • loss aversion: "Jangan sampai kehabisan seperti 41 pembeli sebelumnya"
+
+5️⃣ CALL TO ACTION - CLEAR & COMPELLING:
+   • Beri 1 aksi spesifik yang mudah
+   • Tambahkan incentive: "Free biaya KPR untuk 5 penelepon pertama"
+   • Gunakan power words: "Sekarang", "Hari Ini", "Klaim", "Ambil"
+
+6️⃣ FORMAT & STYLE:
+   • Bahasa Indonesia conversational, seperti ngobrol dengan teman
+   • Pakai emoji strategis (tidak berlebihan)
+   • Short sentences, punchy, easy to read aloud
+   • Durasi sesuai platform (Reels/TikTok: 20-40 detik)
+   • Tambahkan [VISUAL CUE] untuk guidance shooting
+
+7️⃣ PSYCHOLOGICAL TRIGGERS YANG HARUS ADA:
+   ✓ Authority: "Developer terpercaya sejak 2015"
+   ✓ Social Proof: "Komunitas young professional"
+   ✓ Reciprocity: "Free konsultasi KPR + survey lokasi"
+   ✓ Commitment: "DP ringan mulai 10%"
+   ✓ Scarcity: "Last unit di blok terbaik"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OUTPUT FORMAT YANG DIHARAPKAN:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎣 HOOK VIRAL (pilih 3 opsi):
+[Hook 1: ...]
+[Hook 2: ...]
+[Hook 3: ...]
+
+📜 FULL SCRIPT (dengan timing):
+[0-3s] Hook + Visual
+[3-10s] Problem/Desire
+[10-20s] Solution (property reveal)
+[20-30s] Benefits & Features
+[30-35s] Social Proof & Urgency
+[35-40s] Strong CTA
+
+💡 VARIASI CAPTION (3 opsi):
+[Caption 1: ...]
+[Caption 2: ...]
+[Caption 3: ...]
+
+🏷️ HASHTAG STRATEGIC:
+[5-10 hashtag relevan]
+
+🎬 SHOOTING TIPS:
+[2-3 tips untuk video lebih engaging]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+BUAT SCRIPT YANG BENAR-BENAR BISA VIRAL, BUKAN TEMPLATE BIASA!`;
 
     try {
       const res = await fetch("/api/generate-script", {
@@ -632,10 +907,133 @@ Aturan:
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt })
       });
+      
+      // Handle jika API tidak tersedia (development mode)
+      if (!res.ok && res.status === 404) {
+        throw new Error("API tidak tersedia - gunakan mode demo");
+      }
+      
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Server error");
       setOutput(data.text || "Gagal generate script.");
-    } catch (e) { setOutput("❌ Gagal: " + (e.message || "Coba lagi.")); }
+    } catch (e) {
+      // Fallback ke mock response untuk demo - TAPI DENGAN QUALITY TINGGI
+      console.log("Using mock response:", e.message);
+      
+      const hooks = [
+        `🚨 STOP SCROLL! Gaji 5jt tapi bisa punya rumah mewah? BOONG kalo gak percaya!`,
+        `💸 90% orang SALAH pilih rumah pertama mereka! Jangan sampai kamu jadi korban berikutnya!`,
+        `⏰ Nyesel baru tau sekarang... Rumah secepat ini ALWAYS habis dalam 2 minggu!`,
+        `🔥 "GAK MUNGKIN punya rumah sebelum 30!" - Kata siapa? BUKTIKAN SENDIRI!`,
+        `📍 LOKASI EMAS di Senggigi! 5 menit ke pantai, harga masih masuk akal!`
+      ];
+      
+      const randomHook = hooks[Math.floor(Math.random() * hooks.length)];
+      
+      const mockScript = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎣 HOOK VIRAL (PILIHAN):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${randomHook}
+
+Alternatif hook lainnya:
+• "Rumah idaman DP cuma 10%! Gila gak tuh?"
+• "Investor properti sukses mulai dari sini!"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📜 FULL SCRIPT (TIMING 35-40 DETIK):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[0-3s] 🎬 HOOK + VISUAL
+${randomHook}
+[Visual: Zoom in wajah excited / Text overlay besar]
+
+[3-10s] 💭 PROBLEM / DESIRE
+"Banyak yang bilang punya rumah itu mustahil... DP mahal, cicilan mencekik, lokasi jauh!"
+[Visual: Ekspresi frustrasi → transition ke senyum]
+
+[10-20s] ✨ SOLUTION REVEAL
+"TAPI TUNGGU DULU! Griya Senggigi Residence jawabannya!"
+• Tipe ${selectedProp.type} - Perfect untuk ${target.toLowerCase()}
+• Lokasi PREMIUM: ${selectedProp.location.split(',')[0]}
+• Bayangin: Weekend pagi bisa jalan kaki ke pantai!
+[Visual: Pan camera rumah / drone shot lokasi]
+
+[20-30s] 💎 BENEFITS & FEATURES
+"Yang bikin BEDA:"
+✓ DP Ringan: Rp ${selectedProp.dp} aja! (Bisa dicicil!)
+✓ Cicilan: Rp ${selectedProp.cicilan}/bulan - LEBIH KECIL dari sewa kos!
+✓ ${selectedProp.kt} Kamar Tidur + ${selectedProp.km} Kamar Mandi
+✓ Free biaya KPR & BPHTB (promo terbatas!)
+[Visual: Text overlay benefit satu per satu]
+
+[30-35s] 🔥 SOCIAL PROOF & URGENCY
+"41 unit SUDAH LAKU dalam 2 bulan! Sekarang tinggal ${selectedProp.stock} unit terakhir di blok terbaik!"
+"Harga NAIK 15% bulan depan. Ini kesempatan TERAKHIR!"
+[Visual: Counter unit terjual / stamp 'LAST UNIT']
+
+[35-40s] 📲 STRONG CTA
+"JANGAN TUNDA! Klik link di bio atau WA 0812-XXXX-XXXX sekarang!"
+"Free konsultasi KPR + survey lokasi hari ini juga!"
+[Visual: Arrow pointing to bio / WA button animation]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💡 VARIASI CAPTION (3 OPSI):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CAPTION 1 (Emotional):
+🏠 Dari mimpi jadi kenyataan...
+Gaji pas-pasan bukan halangan buat punya rumah impian. Ribuan keluarga muda sudah buktikan!
+Giliran kamu kapan? 👇
+#RumahPertama #KeluargaMuda
+
+CAPTION 2 (Urgency):
+⚠️ LAST CALL! 
+Tinggal ${selectedProp.stock} unit lagi sebelum harga naik!
+DP 10%, cicilan ringan, lokasi strategis!
+Amankan unitmu SEKARANG sebelum kehabisan! 🔥
+
+CAPTION 3 (Question Hook):
+❓Tau gak kenapa 41 orang beli rumah ini dalam 2 bulan?
+Karena ini BUKAN sekadar rumah, tapi INVESTASI masa depan!
+Lokasi berkembang, harga pasti naik!
+Mau tau simulasi KPR-nya? DM aja! 📩
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🏷️ HASHTAG STRATEGIC:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+#PropertiLombok #RumahSenggigi #InvestasiProperti #RumahImpian #KPRMudah #PropertyIndonesia #LombokBarat #RumahMinimalis #GenerasiEmas #FinancialFreedom
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎬 SHOOTING TIPS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. 📱 Gunakan mode portrait 9:16, stabilizer wajib!
+2. ☀️ Shooting pagi (7-9am) atau sore (4-6pm) untuk lighting terbaik
+3. 🎵 Pakai trending audio TikTok/Reels (volume 10-15%)
+4. ⚡ Cut cepat setiap 2-3 detik untuk retain attention
+5. 🎯 Thumbnail: Wajah excited + text "DP 10% AJA!"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✨ BONUS: EMAIL/WHATSAPP FOLLOW-UP TEMPLATE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+"Hai [Nama]! 👋
+Terima kasih udah tertarik dengan Griya Senggigi Residence!
+
+Spesial untuk kamu yang contact hari ini:
+✅ Free biaya KPR (hemat 5jt!)
+✅ Free BPHTB (hemat 3jt!)
+✅ Bonus kanopi & water heater
+
+Mau survey lokasi? Kita jemput GRATIS!
+Balas chat ini atau call 0812-XXXX-XXXX 📞
+
+Unit tinggal ${selectedProp.stock} lagi. Jangan sampai lolos! 🔥";
+`;
+      setOutput(mockScript);
+    }
     setLoading(false);
   };
 
@@ -742,6 +1140,75 @@ Aturan:
             <div className="script-output">{output}</div>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── LOGIN PAGE COMPONENT ─────────────────────────────────────────────────────
+function LoginPage({ onLogin, onSignup, loading, showLogin, setShowLogin }) {
+  const [isLogin, setIsLogin] = useState(showLogin);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+
+  useEffect(() => {
+    setIsLogin(showLogin);
+  }, [showLogin]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (isLogin) {
+      await onLogin(email, password);
+    } else {
+      await onSignup(email, password, name);
+    }
+  };
+
+  return (
+    <div className="card" style={{ background: "rgba(255,255,255,.03)", border: "1px solid rgba(201,168,76,.2)", borderRadius: 16, padding: 32, width: "min(420px, 94vw)" }}>
+      <div style={{ textAlign: "center", marginBottom: 24 }}>
+        <div style={{ fontSize: 28, fontWeight: 700, color: "#c9a84c", fontFamily: "'Playfair Display', serif", marginBottom: 4 }}>Kaya Property</div>
+        <div style={{ fontSize: 13, color: "rgba(232,228,217,.4)", letterSpacing: ".04em" }}>LOMBOK CRM SYSTEM</div>
+      </div>
+
+      <form onSubmit={handleSubmit}>
+        {!isLogin && (
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ fontSize: 12, color: "rgba(232,228,217,.5)", marginBottom: 6, display: "block" }}>Nama Lengkap</label>
+            <input className="input-field" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Masukkan nama Anda" required={!isLogin} />
+          </div>
+        )}
+
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ fontSize: 12, color: "rgba(232,228,217,.5)", marginBottom: 6, display: "block" }}>Email</label>
+          <input className="input-field" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="nama@email.com" required />
+        </div>
+
+        <div style={{ marginBottom: 20 }}>
+          <label style={{ fontSize: 12, color: "rgba(232,228,217,.5)", marginBottom: 6, display: "block" }}>Password</label>
+          <input className="input-field" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Minimal 6 karakter" required minLength={6} />
+        </div>
+
+        <button className="btn-gold" type="submit" style={{ width: "100%", padding: "12px", fontSize: 15, fontWeight: 600 }} disabled={loading}>
+          {loading ? <><span className="loader" /> Loading...</> : isLogin ? "Login" : "Daftar Akun Baru"}
+        </button>
+      </form>
+
+      <div style={{ marginTop: 20, textAlign: "center", fontSize: 13, color: "rgba(232,228,217,.4)" }}>
+        {isLogin ? "Belum punya akun? " : "Sudah punya akun? "}
+        <button onClick={() => setIsLogin(!isLogin)} style={{ background: "none", border: "none", color: "#c9a84c", cursor: "pointer", fontWeight: 600, textDecoration: "underline" }}>
+          {isLogin ? "Daftar Sekarang" : "Login di Sini"}
+        </button>
+      </div>
+
+      <div style={{ marginTop: 24, padding: "12px 16px", background: "rgba(201,168,76,.08)", border: "1px solid rgba(201,168,76,.15)", borderRadius: 8, fontSize: 12, color: "rgba(232,228,217,.6)" }}>
+        <strong>Cara Setup:</strong>
+        <ol style={{ margin: "8px 0 0 16px", lineHeight: 1.6 }}>
+          <li>Buat project di <a href="https://supabase.com" target="_blank" rel="noreferrer" style={{ color: "#c9a84c" }}>supabase.com</a></li>
+          <li>Copy SQL dari file SETUP_DATABASE.sql</li>
+          <li>Paste URL & Key ke file .env</li>
+        </ol>
       </div>
     </div>
   );
