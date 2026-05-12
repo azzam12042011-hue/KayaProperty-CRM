@@ -607,24 +607,101 @@ function Scripts({ properties, showToast }) {
     if (!selectedProp) return;
     setLoading(true); setOutput("");
     const propData = `Nama: ${selectedProp.name} | Tipe: ${selectedProp.type} | Harga: Rp ${selectedProp.price} | DP: Rp ${selectedProp.dp} | Cicilan: Rp ${selectedProp.cicilan}/bln | KT/KM: ${selectedProp.kt}/${selectedProp.km} | Lokasi: ${selectedProp.location} | Stok tersisa: ${selectedProp.stock} unit`;
-    const prompt = `Kamu adalah copywriter properti kelas dunia, content creator viral, dan agen properti terbaik Indonesia. Buat script konten properti yang powerful untuk:
+    
+    // ─── ULTRA POWERFUL PROMPT UNTUK AI ──────────────────────────────────────
+    const prompt = `Kamu adalah copywriter properti ELITE, content creator VIRAL dengan jutaan views, dan agen properti #1 di Indonesia yang sudah closing ratusan unit.
 
-PLATFORM: ${platform}
-JENIS KONTEN: ${scriptType}
-TARGET MARKET: ${target}
-PROPERTI:
+TUGAS: Buat script konten properti FULL yang siap pakai untuk:
+
+📱 PLATFORM: ${platform}
+🎬 JENIS KONTEN: ${scriptType}
+🎯 TARGET MARKET: ${target}
+
+🏠 DETAIL PROPERTI:
 ${propData}
-${extra ? `\nINFO TAMBAHAN: ${extra}` : ""}
+${extra ? `\n💡 INFO TAMBAHAN: ${extra}` : ""}
 
-Aturan:
-- Gunakan bahasa Indonesia yang natural, persuasif, modern
-- Fokus pada manfaat, bukan hanya spesifikasi  
-- Bangun urgensi dan FOMO yang natural
-- Sertakan hook yang kuat di awal
-- Sertakan CTA yang jelas di akhir
-- Tambahkan emoji yang relevan
-- Format rapi dan mudah dibaca
-- Buat seolah unit ini rebutan dan langka`;
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ATURAN WAJIB (HARUS DIPATUHI):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1️⃣ HOOK (3 DETIK PERTAMA) - HARUS MEMUKAU:
+   • Gunakan pattern interrupt yang mengejutkan
+   • Sentuh pain point atau desire terdalam target
+   • Pakai angka, fakta kontroversial, atau pertanyaan provokatif
+   • Contoh hook viral:
+     - "Gaji 5jt tapi punya rumah mewah? BISA!"
+     - "90% orang salah pilih rumah pertama mereka"
+     - "Stop scroll! Ini rahasia punya rumah sebelum 30"
+     - "Nyesel baru tau sekarang..."
+
+2️⃣ BODY SCRIPT - STORYTELLING YANG MENGHYPNOTIS:
+   • Jangan sebut spesifikasi dulu! Mulai dengan MANFAAT & TRANSFORMASI
+   • Gunakan teknik "Before-After": Gambarkan kehidupan SEBELUM & SESUDAH punya rumah ini
+   • Bangun emosi: rasa aman, kebanggaan, kenyamanan keluarga
+   • Sisipkan social proof: "Sudah 41 unit terjual dalam 2 bulan!"
+   • Buat visualisasi: "Bayangkan pagi hari kamu..."
+
+3️⃣ UNIQUE SELLING POINT - BEDAKAN DARI KOMPETITOR:
+   • Fokus pada 1-2 fitur UNIK yang tidak ada di tempat lain
+   • Hubungkan fitur dengan manfaat emosional
+   • Contoh: "Lokasi 5 menit dari pantai = setiap sunset bisa dinikmati bersama keluarga"
+
+4️⃣ URGENCY & FOMO - ALASAN BELI SEKARANG:
+   • scarcity: "Hanya tersisa ${selectedProp.stock} unit dari total ${selectedProp.sold + selectedProp.stock}"
+   • time pressure: "Harga naik bulan depan" / "Promo DP 0% minggu ini saja"
+   • loss aversion: "Jangan sampai kehabisan seperti 41 pembeli sebelumnya"
+
+5️⃣ CALL TO ACTION - CLEAR & COMPELLING:
+   • Beri 1 aksi spesifik yang mudah
+   • Tambahkan incentive: "Free biaya KPR untuk 5 penelepon pertama"
+   • Gunakan power words: "Sekarang", "Hari Ini", "Klaim", "Ambil"
+
+6️⃣ FORMAT & STYLE:
+   • Bahasa Indonesia conversational, seperti ngobrol dengan teman
+   • Pakai emoji strategis (tidak berlebihan)
+   • Short sentences, punchy, easy to read aloud
+   • Durasi sesuai platform (Reels/TikTok: 20-40 detik)
+   • Tambahkan [VISUAL CUE] untuk guidance shooting
+
+7️⃣ PSYCHOLOGICAL TRIGGERS YANG HARUS ADA:
+   ✓ Authority: "Developer terpercaya sejak 2015"
+   ✓ Social Proof: "Komunitas young professional"
+   ✓ Reciprocity: "Free konsultasi KPR + survey lokasi"
+   ✓ Commitment: "DP ringan mulai 10%"
+   ✓ Scarcity: "Last unit di blok terbaik"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OUTPUT FORMAT YANG DIHARAPKAN:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎣 HOOK VIRAL (pilih 3 opsi):
+[Hook 1: ...]
+[Hook 2: ...]
+[Hook 3: ...]
+
+📜 FULL SCRIPT (dengan timing):
+[0-3s] Hook + Visual
+[3-10s] Problem/Desire
+[10-20s] Solution (property reveal)
+[20-30s] Benefits & Features
+[30-35s] Social Proof & Urgency
+[35-40s] Strong CTA
+
+💡 VARIASI CAPTION (3 opsi):
+[Caption 1: ...]
+[Caption 2: ...]
+[Caption 3: ...]
+
+🏷️ HASHTAG STRATEGIC:
+[5-10 hashtag relevan]
+
+🎬 SHOOTING TIPS:
+[2-3 tips untuk video lebih engaging]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+BUAT SCRIPT YANG BENAR-BENAR BISA VIRAL, BUKAN TEMPLATE BIASA!`;
 
     try {
       const res = await fetch("/api/generate-script", {
@@ -642,27 +719,121 @@ Aturan:
       if (!res.ok) throw new Error(data.error || "Server error");
       setOutput(data.text || "Gagal generate script.");
     } catch (e) {
-      // Fallback ke mock response untuk demo
+      // Fallback ke mock response untuk demo - TAPI DENGAN QUALITY TINGGI
       console.log("Using mock response:", e.message);
-      const mockScript = `🔥 ${scriptType.toUpperCase()} - ${selectedProp.name} 🔥
+      
+      const hooks = [
+        `🚨 STOP SCROLL! Gaji 5jt tapi bisa punya rumah mewah? BOONG kalo gak percaya!`,
+        `💸 90% orang SALAH pilih rumah pertama mereka! Jangan sampai kamu jadi korban berikutnya!`,
+        `⏰ Nyesel baru tau sekarang... Rumah secepat ini ALWAYS habis dalam 2 minggu!`,
+        `🔥 "GAK MUNGKIN punya rumah sebelum 30!" - Kata siapa? BUKTIKAN SENDIRI!`,
+        `📍 LOKASI EMAS di Senggigi! 5 menit ke pantai, harga masih masuk akal!`
+      ];
+      
+      const randomHook = hooks[Math.floor(Math.random() * hooks.length)];
+      
+      const mockScript = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎣 HOOK VIRAL (PILIHAN):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-📍 ${selectedProp.location}
-💰 Harga: Rp ${selectedProp.price}
-✅ DP: Rp ${selectedProp.dp}
-📅 Cicilan: Rp ${selectedProp.cicilan}/bulan
+${randomHook}
 
-✨ MENGAPA INI PILIHAN TEPAT?
-• Rumah tipe ${selectedProp.type} dengan ${selectedProp.kt} kamar tidur & ${selectedProp.km} kamar mandi
-• Cocok untuk ${target.toLowerCase()}
-• Stok TERBATAS! Hanya tersisa ${selectedProp.stock} unit!
+Alternatif hook lainnya:
+• "Rumah idaman DP cuma 10%! Gila gak tuh?"
+• "Investor properti sukses mulai dari sini!"
 
-⏰ JANGAN TUNDA LAGI!
-Unit secepat ini selalu habis dalam hitungan minggu. Dapatkan sekarang sebelum harga naik!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📜 FULL SCRIPT (TIMING 35-40 DETIK):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-📲 HUBUNGI KAMI SEKARANG!
-[WhatsApp] [Call] [Survey Lokasi]
+[0-3s] 🎬 HOOK + VISUAL
+${randomHook}
+[Visual: Zoom in wajah excited / Text overlay besar]
 
-#PropertiLombok #RumahImpian #InvestasiProperti`;
+[3-10s] 💭 PROBLEM / DESIRE
+"Banyak yang bilang punya rumah itu mustahil... DP mahal, cicilan mencekik, lokasi jauh!"
+[Visual: Ekspresi frustrasi → transition ke senyum]
+
+[10-20s] ✨ SOLUTION REVEAL
+"TAPI TUNGGU DULU! Griya Senggigi Residence jawabannya!"
+• Tipe ${selectedProp.type} - Perfect untuk ${target.toLowerCase()}
+• Lokasi PREMIUM: ${selectedProp.location.split(',')[0]}
+• Bayangin: Weekend pagi bisa jalan kaki ke pantai!
+[Visual: Pan camera rumah / drone shot lokasi]
+
+[20-30s] 💎 BENEFITS & FEATURES
+"Yang bikin BEDA:"
+✓ DP Ringan: Rp ${selectedProp.dp} aja! (Bisa dicicil!)
+✓ Cicilan: Rp ${selectedProp.cicilan}/bulan - LEBIH KECIL dari sewa kos!
+✓ ${selectedProp.kt} Kamar Tidur + ${selectedProp.km} Kamar Mandi
+✓ Free biaya KPR & BPHTB (promo terbatas!)
+[Visual: Text overlay benefit satu per satu]
+
+[30-35s] 🔥 SOCIAL PROOF & URGENCY
+"41 unit SUDAH LAKU dalam 2 bulan! Sekarang tinggal ${selectedProp.stock} unit terakhir di blok terbaik!"
+"Harga NAIK 15% bulan depan. Ini kesempatan TERAKHIR!"
+[Visual: Counter unit terjual / stamp 'LAST UNIT']
+
+[35-40s] 📲 STRONG CTA
+"JANGAN TUNDA! Klik link di bio atau WA 0812-XXXX-XXXX sekarang!"
+"Free konsultasi KPR + survey lokasi hari ini juga!"
+[Visual: Arrow pointing to bio / WA button animation]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💡 VARIASI CAPTION (3 OPSI):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CAPTION 1 (Emotional):
+🏠 Dari mimpi jadi kenyataan...
+Gaji pas-pasan bukan halangan buat punya rumah impian. Ribuan keluarga muda sudah buktikan!
+Giliran kamu kapan? 👇
+#RumahPertama #KeluargaMuda
+
+CAPTION 2 (Urgency):
+⚠️ LAST CALL! 
+Tinggal ${selectedProp.stock} unit lagi sebelum harga naik!
+DP 10%, cicilan ringan, lokasi strategis!
+Amankan unitmu SEKARANG sebelum kehabisan! 🔥
+
+CAPTION 3 (Question Hook):
+❓Tau gak kenapa 41 orang beli rumah ini dalam 2 bulan?
+Karena ini BUKAN sekadar rumah, tapi INVESTASI masa depan!
+Lokasi berkembang, harga pasti naik!
+Mau tau simulasi KPR-nya? DM aja! 📩
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🏷️ HASHTAG STRATEGIC:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+#PropertiLombok #RumahSenggigi #InvestasiProperti #RumahImpian #KPRMudah #PropertyIndonesia #LombokBarat #RumahMinimalis #GenerasiEmas #FinancialFreedom
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎬 SHOOTING TIPS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. 📱 Gunakan mode portrait 9:16, stabilizer wajib!
+2. ☀️ Shooting pagi (7-9am) atau sore (4-6pm) untuk lighting terbaik
+3. 🎵 Pakai trending audio TikTok/Reels (volume 10-15%)
+4. ⚡ Cut cepat setiap 2-3 detik untuk retain attention
+5. 🎯 Thumbnail: Wajah excited + text "DP 10% AJA!"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✨ BONUS: EMAIL/WHATSAPP FOLLOW-UP TEMPLATE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+"Hai [Nama]! 👋
+Terima kasih udah tertarik dengan Griya Senggigi Residence!
+
+Spesial untuk kamu yang contact hari ini:
+✅ Free biaya KPR (hemat 5jt!)
+✅ Free BPHTB (hemat 3jt!)
+✅ Bonus kanopi & water heater
+
+Mau survey lokasi? Kita jemput GRATIS!
+Balas chat ini atau call 0812-XXXX-XXXX 📞
+
+Unit tinggal ${selectedProp.stock} lagi. Jangan sampai lolos! 🔥";
+`;
       setOutput(mockScript);
     }
     setLoading(false);
