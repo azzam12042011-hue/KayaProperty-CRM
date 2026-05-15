@@ -275,8 +275,8 @@ export default async function handler(req, res) {
         platform = 'youtube',
         showBadge,
         badgeText,
-        includeReview,
-        reviewData
+        housePhoto,
+        reviewPhoto
       } = req.body;
       
       // Validate required fields
@@ -307,8 +307,9 @@ export default async function handler(req, res) {
         dimensions,
         showBadge,
         badgeText,
-        includeReview,
-        reviewData
+        housePhoto,
+        reviewName,
+        reviewQuote
       });
       
       // Convert SVG to PNG using sharp
@@ -375,8 +376,10 @@ function generateThumbnailSVG(config) {
     dimensions,
     showBadge,
     badgeText,
-    includeReview,
-    reviewData
+    housePhoto,
+    reviewPhoto,
+    reviewName,
+    reviewQuote
   } = config;
   
   const { width, height } = dimensions;
@@ -415,23 +418,35 @@ function generateThumbnailSVG(config) {
   switch (template.layout) {
     case 'center-hero':
       content = `
-        <!-- Hero Image Placeholder -->
-        <rect x="${width * 0.1}" y="${height * 0.15}" width="${width * 0.8}" height="${height * 0.5}" 
+        ${housePhoto ? `<!-- House Photo -->
+        <image x="${width * 0.1}" y="${height * 0.15}" width="${width * 0.8}" height="${height * 0.5}" 
+               href="${housePhoto}" preserveAspectRatio="xMidYMid slice" clip-path="inset(0 round 8)"/>
+        ` : `<!-- Hero Image Placeholder -->
+        <rect x="${width * 0.1}" y="${height * 0.15}" width="${width * 0.8}" height="${height * 0.5}"
               fill="${secondary}" opacity="0.3" rx="8"/>
-        <text x="${width/2}" y="${height * 0.4}" text-anchor="middle" 
+        <text x="${width/2}" y="${height * 0.4}" text-anchor="middle"
               fill="${text}" font-size="24" font-weight="bold" opacity="0.5">
           🏠 ${property.name}
-        </text>
+        </text>`}
         
         <!-- Price Badge Center -->
-        <circle cx="${width/2}" cy="${height/2}" r="${Math.min(width, height) * 0.15}" 
+        <circle cx="${width/2}" cy="${height/2}" r="${Math.min(width, height) * 0.15}"
                 fill="${accent}" filter="url(#glow)"/>
-        <text x="${width/2}" y="${height/2 - 15}" text-anchor="middle" 
+        <text x="${width/2}" y="${height/2 - 15}" text-anchor="middle"
               fill="${secondary}" font-size="28" font-weight="bold">Rp</text>
-        <text x="${width/2}" y="${height/2 + 25}" text-anchor="middle" 
+        <text x="${width/2}" y="${height/2 + 25}" text-anchor="middle"
               fill="${secondary}" font-size="42" font-weight="bold">
           ${parseInt(property.price.replace(/\./g, '') / 1000000)}Jt
         </text>
+        
+        ${reviewPhoto ? `<!-- Review Avatar -->
+        <circle cx="${width * 0.15}" cy="${height * 0.85}" r="35" fill="#fff" stroke="${accent}" stroke-width="3"/>
+        <image x="${width * 0.15}" y="${height * 0.85}" width="60" height="60"
+               href="${reviewPhoto}" preserveAspectRatio="xMidYMid slice" clip-path="circle(30)"/>
+        <text x="${width * 0.22}" y="${height * 0.82}" fill="${text}" font-size="14" font-weight="bold">⭐⭐⭐⭐⭐</text>
+        <text x="${width * 0.22}" y="${height * 0.87}" fill="${text}" font-size="12" font-style="italic">${reviewQuote.substring(0, 40)}</text>
+        <text x="${width * 0.22}" y="${height * 0.91}" fill="${accent}" font-size="11">- ${reviewName}</text>
+        ` : ''}
       `;
       break;
       
@@ -456,23 +471,24 @@ function generateThumbnailSVG(config) {
     case 'overlay':
       content = `
         <!-- Full Background Image Placeholder -->
-        <rect width="${width}" height="${height}" fill="${secondary}" opacity="0.8"/>
+        ${housePhoto ? `<image width="${width}" height="${height}" href="${housePhoto}" preserveAspectRatio="xMidYMid slice"/>
+        <rect width="${width}" height="${height}" fill="${secondary}" opacity="0.6"/>` : 
+        `<rect width="${width}" height="${height}" fill="${secondary}" opacity="0.8"/>
+        <text x="${width/2}" y="${height/2}" text-anchor="middle" fill="${text}" font-size="48" opacity="0.3">🏠</text>`}
         
         <!-- Review Card -->
-        <rect x="${width * 0.1}" y="${height * 0.55}" width="${width * 0.8}" height="${height * 0.35}" 
+        <rect x="${width * 0.1}" y="${height * 0.55}" width="${width * 0.8}" height="${height * 0.35}"
               fill="${primary}" rx="12" filter="url(#shadow)"/>
-        <text x="${width * 0.2}" y="${height * 0.65}" fill="${text}" font-size="20" font-weight="bold">
-          ⭐⭐⭐⭐⭐
-        </text>
-        <text x="${width * 0.2}" y="${height * 0.72}" fill="${text}" font-size="18" font-style="italic">
-          "Best investment ever!"
-        </text>
-        <text x="${width * 0.2}" y="${height * 0.8}" fill="${accent}" font-size="16">
-          - Happy Buyer
-        </text>
+        ${reviewPhoto ? `<circle cx="${width * 0.2}" cy="${height * 0.68}" r="25" fill="#fff"/>
+        <image x="${width * 0.2}" y="${height * 0.68}" width="45" height="45"
+               href="${reviewPhoto}" preserveAspectRatio="xMidYMid slice" clip-path="circle(22)"/>
+        ` : ''}
+        <text x="${width * 0.28}" y="${height * 0.65}" fill="${text}" font-size="18" font-weight="bold">⭐⭐⭐⭐⭐</text>
+        <text x="${width * 0.28}" y="${height * 0.72}" fill="${text}" font-size="14" font-style="italic">${reviewQuote ? reviewQuote.substring(0, 35) : '"Best investment ever!"'}</text>
+        <text x="${width * 0.28}" y="${height * 0.8}" fill="${accent}" font-size="13">- ${reviewName || 'Happy Buyer'}</text>
         
         <!-- Main Headline -->
-        <text x="${width/2}" y="${height * 0.35}" text-anchor="middle" 
+        <text x="${width/2}" y="${height * 0.35}" text-anchor="middle"
               fill="${text}" font-size="42" font-weight="bold" filter="url(#shadow)">
           ${headline.substring(0, 35)}
         </text>

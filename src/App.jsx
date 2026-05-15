@@ -768,6 +768,10 @@ function ThumbnailGenerator({ properties, showToast }) {
   const [aiScore, setAiScore] = useState(null);
   const [suggestions, setSuggestions] = useState(null);
   const [activeTab, setActiveTab] = useState('preview');
+  const [housePhoto, setHousePhoto] = useState(null);
+  const [reviewPhoto, setReviewPhoto] = useState(null);
+  const [reviewName, setReviewName] = useState('Buyer Puas');
+  const [reviewQuote, setReviewQuote] = useState('Sudah 50+ unit terjual!');
 
   const selectedProp = properties[propIdx];
 
@@ -825,7 +829,11 @@ function ThumbnailGenerator({ properties, showToast }) {
           emotionalTriggers: triggers,
           platform,
           showBadge,
-          badgeText
+          badgeText,
+          housePhoto,
+          reviewPhoto,
+          reviewName,
+          reviewQuote
         })
       });
 
@@ -969,6 +977,74 @@ function ThumbnailGenerator({ properties, showToast }) {
               maxLength={15}
             />
           )}
+
+          <div>
+            <label style={{ fontSize: 12, color: "rgba(232,228,217,.5)", marginBottom: 6, display: "block" }}>📸 Foto Rumah (Optional)</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={e => {
+                const file = e.target.files[0];
+                if (file) {
+                  const reader = new FileReader();
+                  reader.onloadend = () => setHousePhoto(reader.result);
+                  reader.readAsDataURL(file);
+                }
+              }}
+              style={{ fontSize: 12, color: "rgba(232,228,217,.5)" }}
+            />
+            {housePhoto && (
+              <div style={{ marginTop: 8, position: 'relative', display: 'inline-block' }}>
+                <img src={housePhoto} alt="House" style={{ width: 80, height: 60, objectFit: 'cover', borderRadius: 6, border: '1px solid rgba(255,255,255,.1)' }} />
+                <button onClick={() => setHousePhoto(null)} style={{ position: 'absolute', top: -8, right: -8, width: 20, height: 20, borderRadius: '50%', background: '#ef4444', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 12 }}>×</button>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label style={{ fontSize: 12, color: "rgba(232,228,217,.5)", marginBottom: 6, display: "block" }}>👤 Foto Review (Optional)</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={e => {
+                const file = e.target.files[0];
+                if (file) {
+                  const reader = new FileReader();
+                  reader.onloadend = () => setReviewPhoto(reader.result);
+                  reader.readAsDataURL(file);
+                }
+              }}
+              style={{ fontSize: 12, color: "rgba(232,228,217,.5)" }}
+            />
+            {reviewPhoto && (
+              <div style={{ marginTop: 8, position: 'relative', display: 'inline-block' }}>
+                <img src={reviewPhoto} alt="Review" style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: '50%', border: '2px solid #c9a84c' }} />
+                <button onClick={() => setReviewPhoto(null)} style={{ position: 'absolute', top: -8, right: -8, width: 20, height: 20, borderRadius: '50%', background: '#ef4444', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 12 }}>×</button>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label style={{ fontSize: 12, color: "rgba(232,228,217,.5)", marginBottom: 6, display: "block" }}>Nama Reviewer</label>
+            <input
+              className="input-field"
+              value={reviewName}
+              onChange={e => setReviewName(e.target.value)}
+              placeholder="Buyer Puas"
+              maxLength={30}
+            />
+          </div>
+
+          <div>
+            <label style={{ fontSize: 12, color: "rgba(232,228,217,.5)", marginBottom: 6, display: "block" }}>Quote Testimoni</label>
+            <input
+              className="input-field"
+              value={reviewQuote}
+              onChange={e => setReviewQuote(e.target.value)}
+              placeholder="Sudah 50+ unit terjual!"
+              maxLength={50}
+            />
+          </div>
 
           <div>
             <label style={{ fontSize: 12, color: "rgba(232,228,217,.5)", marginBottom: 8, display: "block" }}>Emotional Triggers</label>
