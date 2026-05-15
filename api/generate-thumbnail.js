@@ -276,7 +276,9 @@ export default async function handler(req, res) {
         showBadge,
         badgeText,
         housePhoto,
-        reviewPhoto
+        reviewPhoto,
+        reviewName,
+        reviewQuote
       } = req.body;
       
       // Validate required fields
