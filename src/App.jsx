@@ -42,6 +42,7 @@ const Icon = ({ name, size = 18 }) => {
     property: <svg width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
     script: <svg width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>,
     activity: <svg width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>,
+    thumbnail: <svg width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M12 8v8"/></svg>,
     plus: <svg width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
     trash: <svg width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>,
     edit: <svg width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
@@ -50,6 +51,8 @@ const Icon = ({ name, size = 18 }) => {
     copy: <svg width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>,
     ai: <svg width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>,
     check: <svg width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>,
+    download: <svg width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
+    star: <svg width={size} height={size} fill="currentColor" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>,
   };
   return icons[name] || null;
 };
@@ -145,6 +148,7 @@ export default function App() {
             { id: "properties", label: "Data Properti", icon: "property" },
             { id: "activities", label: "Aktivitas", icon: "activity" },
             { id: "scripts", label: "Script Generator", icon: "script" },
+            { id: "thumbnails", label: "AI Thumbnail", icon: "thumbnail" },
           ].map(nav => (
             <button key={nav.id} className={`nav-item ${page === nav.id ? "active" : ""}`} onClick={() => setPage(nav.id)}
               style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "11px 12px", background: "none", border: "none", color: page === nav.id ? "#c9a84c" : "rgba(232,228,217,.6)", cursor: "pointer", borderRadius: 8, fontSize: 14, fontFamily: "inherit", marginBottom: 2, textAlign: "left" }}>
@@ -170,6 +174,7 @@ export default function App() {
         {page === "properties" && <Properties properties={properties} setProperties={setProperties} showToast={showToast} />}
         {page === "activities" && <Activities activities={activities} setActivities={setActivities} leads={leads} showToast={showToast} />}
         {page === "scripts" && <Scripts properties={properties} showToast={showToast} />}
+        {page === "thumbnails" && <ThumbnailGenerator properties={properties} showToast={showToast} />}
       </main>
 
       {/* TOAST */}
@@ -740,6 +745,539 @@ Aturan:
           )}
           {output && !loading && (
             <div className="script-output">{output}</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── AI THUMBNAIL GENERATOR ───────────────────────────────────────────────────
+function ThumbnailGenerator({ properties, showToast }) {
+  const [propIdx, setPropIdx] = useState(0);
+  const [template, setTemplate] = useState('priceFocus');
+  const [platform, setPlatform] = useState('youtube');
+  const [headline, setHeadline] = useState('');
+  const [subheadline, setSubheadline] = useState('');
+  const [cta, setCta] = useState('SEKARANG!');
+  const [badgeText, setBadgeText] = useState('HOT DEAL');
+  const [showBadge, setShowBadge] = useState(true);
+  const [emotionalTriggers, setEmotionalTriggers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [thumbnail, setThumbnail] = useState(null);
+  const [aiScore, setAiScore] = useState(null);
+  const [suggestions, setSuggestions] = useState(null);
+  const [activeTab, setActiveTab] = useState('preview');
+  const [housePhoto, setHousePhoto] = useState(null);
+  const [reviewPhoto, setReviewPhoto] = useState(null);
+  const [reviewName, setReviewName] = useState('Buyer Puas');
+  const [reviewQuote, setReviewQuote] = useState('Sudah 50+ unit terjual!');
+
+  const selectedProp = properties[propIdx];
+
+  const TEMPLATES = {
+    priceFocus: { name: 'Price Focus', desc: 'Luxury theme, harga bold' },
+    urgencyBomb: { name: 'Urgency Bomb', desc: 'Red alert, flash sale' },
+    socialProof: { name: 'Social Proof', desc: 'Testimoni overlay' },
+    minimalistModern: { name: 'Minimalist', desc: 'Clean & modern' },
+    emotionalStory: { name: 'Emotional', desc: 'Warm family tones' },
+    investmentAngle: { name: 'Investment', desc: 'Green money theme' },
+    comparison: { name: 'Comparison', desc: 'Before/After' },
+    questionHook: { name: 'Question', desc: 'Big question hook' },
+    numberList: { name: 'Number List', desc: '5 Alasan Beli...' },
+    videoThumbnail: { name: 'Video Style', desc: 'YouTube thumbnail' }
+  };
+
+  const EMOTIONAL_TRIGGERS = [
+    { id: 'urgency1', icon: '⏰', text: '3 Unit Tersisa!' },
+    { id: 'urgency2', icon: '🔥', text: 'Selling Fast' },
+    { id: 'urgency3', icon: '⚡', text: 'Flash Deal Hari Ini' },
+    { id: 'fomo1', icon: '👥', text: '12 orang melihat' },
+    { id: 'fomo2', icon: '📊', text: '85% Terjual' },
+    { id: 'fomo3', icon: '🏆', text: 'Most Wanted' },
+    { id: 'scarcity1', icon: '🏠', text: 'Hanya 2 Unit!' },
+    { id: 'scarcity2', icon: '⭐', text: 'Last Chance!' },
+    { id: 'scarcity3', icon: '💎', text: 'Exclusive Offer' }
+  ];
+
+  const toggleTrigger = (id) => {
+    setEmotionalTriggers(prev => 
+      prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]
+    );
+  };
+
+  const generateThumbnail = async () => {
+    if (!selectedProp) return;
+    setLoading(true);
+    setThumbnail(null);
+    setAiScore(null);
+
+    const triggers = emotionalTriggers.map(id => 
+      EMOTIONAL_TRIGGERS.find(t => t.id === id)
+    ).filter(Boolean);
+
+    try {
+      const res = await fetch('/api/generate-thumbnail', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          property: selectedProp,
+          template,
+          headline: headline || `DP ${selectedProp.dp} | Cicilan ${selectedProp.cicilan}`,
+          subheadline: subheadline || `${selectedProp.kt}KT/${selectedProp.km}KM - ${selectedProp.type}`,
+          cta,
+          emotionalTriggers: triggers,
+          platform,
+          showBadge,
+          badgeText,
+          housePhoto,
+          reviewPhoto,
+          reviewName,
+          reviewQuote
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to generate');
+
+      setThumbnail(data.thumbnail);
+      setAiScore(data.aiScore);
+      setSuggestions(data.suggestions);
+      showToast('Thumbnail berhasil dibuat! ✓');
+    } catch (e) {
+      showToast('Gagal generate thumbnail: ' + e.message, 'error');
+    }
+    setLoading(false);
+  };
+
+  const downloadThumbnail = () => {
+    if (!thumbnail) return;
+    const link = document.createElement('a');
+    link.href = thumbnail;
+    link.download = `thumbnail-${selectedProp?.type}-${Date.now()}.png`;
+    link.click();
+    showToast('Download dimulai! ✓');
+  };
+
+  const applySuggestion = (type, value) => {
+    if (type === 'headline') setHeadline(value.text);
+    showToast('Applied! ✓');
+  };
+
+  return (
+    <div className="page">
+      <div style={{ marginBottom: 28 }}>
+        <h1 style={{ fontFamily: "'Playfair Display',serif", fontSize: 26, fontWeight: 700, color: "#e8e4d9" }}>
+          🎨 AI Thumbnail Generator
+        </h1>
+        <p style={{ color: "rgba(232,228,217,.45)", fontSize: 13, marginTop: 4 }}>
+          Buat thumbnail video marketing properti yang menarik & high-converting secara otomatis
+        </p>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "360px 1fr 320px", gap: 20, alignItems: "start" }}>
+        {/* LEFT PANEL - Configuration */}
+        <div className="glass" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+            <span style={{ fontSize: 14, fontWeight: 600, color: "#c9a84c" }}>⚙️ Konfigurasi</span>
+          </div>
+
+          <div>
+            <label style={{ fontSize: 12, color: "rgba(232,228,217,.5)", marginBottom: 6, display: "block" }}>Pilih Properti</label>
+            <select className="input-field" value={propIdx} onChange={e => setPropIdx(Number(e.target.value))}>
+              {properties.map((p, i) => <option key={i} value={i}>{p.name} — {p.type}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label style={{ fontSize: 12, color: "rgba(232,228,217,.5)", marginBottom: 6, display: "block" }}>Template</label>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {Object.entries(TEMPLATES).map(([key, val]) => (
+                <button
+                  key={key}
+                  onClick={() => setTemplate(key)}
+                  style={{
+                    padding: '8px',
+                    fontSize: 11,
+                    border: template === key ? '2px solid #c9a84c' : '1px solid rgba(255,255,255,.1)',
+                    background: template === key ? 'rgba(201,168,76,.1)' : 'transparent',
+                    color: template === key ? '#c9a84c' : 'rgba(232,228,217,.6)',
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                    textAlign: 'left'
+                  }}
+                >
+                  <div style={{ fontWeight: 600 }}>{val.name}</div>
+                  <div style={{ fontSize: 9, opacity: 0.7 }}>{val.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label style={{ fontSize: 12, color: "rgba(232,228,217,.5)", marginBottom: 6, display: "block" }}>Platform</label>
+            <select className="input-field" value={platform} onChange={e => setPlatform(e.target.value)}>
+              <option value="youtube">YouTube (1280x720)</option>
+              <option value="instagram">Instagram (1080x1080)</option>
+              <option value="tiktok">TikTok (1080x1920)</option>
+              <option value="facebook">Facebook (1200x628)</option>
+            </select>
+          </div>
+
+          <div>
+            <label style={{ fontSize: 12, color: "rgba(232,228,217,.5)", marginBottom: 6, display: "block" }}>Headline (Max 7 kata)</label>
+            <input
+              className="input-field"
+              value={headline}
+              onChange={e => setHeadline(e.target.value)}
+              placeholder="Contoh: DP 35Jt Punya Rumah!"
+              maxLength={50}
+            />
+          </div>
+
+          <div>
+            <label style={{ fontSize: 12, color: "rgba(232,228,217,.5)", marginBottom: 6, display: "block" }}>Sub-headline</label>
+            <input
+              className="input-field"
+              value={subheadline}
+              onChange={e => setSubheadline(e.target.value)}
+              placeholder="Contoh: 2KT/1KM - Cicilan 2.1Jt"
+              maxLength={40}
+            />
+          </div>
+
+          <div>
+            <label style={{ fontSize: 12, color: "rgba(232,228,217,.5)", marginBottom: 6, display: "block" }}>Call-to-Action</label>
+            <input
+              className="input-field"
+              value={cta}
+              onChange={e => setCta(e.target.value)}
+              placeholder="SEKARANG!"
+              maxLength={20}
+            />
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              type="checkbox"
+              id="badge"
+              checked={showBadge}
+              onChange={e => setShowBadge(e.target.checked)}
+              style={{ width: 16, height: 16 }}
+            />
+            <label htmlFor="badge" style={{ fontSize: 12, color: "rgba(232,228,217,.7)" }}>Show Badge</label>
+          </div>
+
+          {showBadge && (
+            <input
+              className="input-field"
+              value={badgeText}
+              onChange={e => setBadgeText(e.target.value)}
+              placeholder="HOT DEAL"
+              maxLength={15}
+            />
+          )}
+
+          <div>
+            <label style={{ fontSize: 12, color: "rgba(232,228,217,.5)", marginBottom: 6, display: "block" }}>📸 Foto Rumah (Optional)</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={e => {
+                const file = e.target.files[0];
+                if (file) {
+                  const reader = new FileReader();
+                  reader.onloadend = () => setHousePhoto(reader.result);
+                  reader.readAsDataURL(file);
+                }
+              }}
+              style={{ fontSize: 12, color: "rgba(232,228,217,.5)" }}
+            />
+            {housePhoto && (
+              <div style={{ marginTop: 8, position: 'relative', display: 'inline-block' }}>
+                <img src={housePhoto} alt="House" style={{ width: 80, height: 60, objectFit: 'cover', borderRadius: 6, border: '1px solid rgba(255,255,255,.1)' }} />
+                <button onClick={() => setHousePhoto(null)} style={{ position: 'absolute', top: -8, right: -8, width: 20, height: 20, borderRadius: '50%', background: '#ef4444', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 12 }}>×</button>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label style={{ fontSize: 12, color: "rgba(232,228,217,.5)", marginBottom: 6, display: "block" }}>👤 Foto Review (Optional)</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={e => {
+                const file = e.target.files[0];
+                if (file) {
+                  const reader = new FileReader();
+                  reader.onloadend = () => setReviewPhoto(reader.result);
+                  reader.readAsDataURL(file);
+                }
+              }}
+              style={{ fontSize: 12, color: "rgba(232,228,217,.5)" }}
+            />
+            {reviewPhoto && (
+              <div style={{ marginTop: 8, position: 'relative', display: 'inline-block' }}>
+                <img src={reviewPhoto} alt="Review" style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: '50%', border: '2px solid #c9a84c' }} />
+                <button onClick={() => setReviewPhoto(null)} style={{ position: 'absolute', top: -8, right: -8, width: 20, height: 20, borderRadius: '50%', background: '#ef4444', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 12 }}>×</button>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label style={{ fontSize: 12, color: "rgba(232,228,217,.5)", marginBottom: 6, display: "block" }}>Nama Reviewer</label>
+            <input
+              className="input-field"
+              value={reviewName}
+              onChange={e => setReviewName(e.target.value)}
+              placeholder="Buyer Puas"
+              maxLength={30}
+            />
+          </div>
+
+          <div>
+            <label style={{ fontSize: 12, color: "rgba(232,228,217,.5)", marginBottom: 6, display: "block" }}>Quote Testimoni</label>
+            <input
+              className="input-field"
+              value={reviewQuote}
+              onChange={e => setReviewQuote(e.target.value)}
+              placeholder="Sudah 50+ unit terjual!"
+              maxLength={50}
+            />
+          </div>
+
+          <div>
+            <label style={{ fontSize: 12, color: "rgba(232,228,217,.5)", marginBottom: 8, display: "block" }}>Emotional Triggers</label>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {EMOTIONAL_TRIGGERS.map(trigger => (
+                <button
+                  key={trigger.id}
+                  onClick={() => toggleTrigger(trigger.id)}
+                  style={{
+                    padding: '4px 10px',
+                    fontSize: 11,
+                    border: emotionalTriggers.includes(trigger.id) ? '1px solid #c9a84c' : '1px solid rgba(255,255,255,.1)',
+                    background: emotionalTriggers.includes(trigger.id) ? 'rgba(201,168,76,.15)' : 'transparent',
+                    color: emotionalTriggers.includes(trigger.id) ? '#c9a84c' : 'rgba(232,228,217,.5)',
+                    borderRadius: 20,
+                    cursor: 'pointer'
+                  }}
+                >
+                  {trigger.icon} {trigger.text}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <button
+            className="btn-gold"
+            style={{ padding: "12px", fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 8 }}
+            onClick={generateThumbnail}
+            disabled={loading || !selectedProp}
+          >
+            {loading ? (
+              <><span className="loader" /><span>Generating...</span></>
+            ) : (
+              <><span>🎨</span><span>Generate Thumbnail</span></>
+            )}
+          </button>
+        </div>
+
+        {/* CENTER - Live Preview */}
+        <div className="glass" style={{ padding: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+            <span style={{ fontSize: 14, fontWeight: 600, color: "#c9a84c" }}>📱 Live Preview</span>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                onClick={() => setActiveTab('preview')}
+                style={{
+                  padding: '4px 12px',
+                  fontSize: 11,
+                  border: activeTab === 'preview' ? '1px solid #c9a84c' : '1px solid transparent',
+                  background: activeTab === 'preview' ? 'rgba(201,168,76,.1)' : 'transparent',
+                  color: activeTab === 'preview' ? '#c9a84c' : 'rgba(232,228,217,.5)',
+                  borderRadius: 4,
+                  cursor: 'pointer'
+                }}
+              >
+                Preview
+              </button>
+              <button
+                onClick={() => setActiveTab('score')}
+                style={{
+                  padding: '4px 12px',
+                  fontSize: 11,
+                  border: activeTab === 'score' ? '1px solid #c9a84c' : '1px solid transparent',
+                  background: activeTab === 'score' ? 'rgba(201,168,76,.1)' : 'transparent',
+                  color: activeTab === 'score' ? '#c9a84c' : 'rgba(232,228,217,.5)',
+                  borderRadius: 4,
+                  cursor: 'pointer'
+                }}
+              >
+                AI Score
+              </button>
+            </div>
+          </div>
+
+          {!thumbnail && !loading && (
+            <div style={{ textAlign: "center", padding: "80px 20px", color: "rgba(232,228,217,.25)" }}>
+              <div style={{ fontSize: 56, marginBottom: 16 }}>🖼️</div>
+              <div style={{ fontSize: 15, marginBottom: 6, color: "rgba(232,228,217,.35)" }}>Thumbnail belum digenerate</div>
+              <div style={{ fontSize: 13 }}>Konfigurasi di panel kiri, lalu klik "Generate Thumbnail"</div>
+            </div>
+          )}
+
+          {loading && (
+            <div style={{ textAlign: "center", padding: "80px 20px" }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
+                <div className="loader" style={{ width: 42, height: 42, borderWidth: 4 }} />
+                <div style={{ color: "rgba(232,228,217,.5)", fontSize: 14 }}>AI sedang membuat thumbnail...</div>
+              </div>
+            </div>
+          )}
+
+          {thumbnail && activeTab === 'preview' && (
+            <div style={{ textAlign: 'center' }}>
+              <img
+                src={thumbnail}
+                alt="Generated Thumbnail"
+                style={{ maxWidth: '100%', borderRadius: 8, border: '1px solid rgba(255,255,255,.1)' }}
+              />
+              <button
+                className="btn-gold"
+                style={{ marginTop: 16, padding: '10px 24px' }}
+                onClick={downloadThumbnail}
+              >
+                ⬇️ Download PNG
+              </button>
+            </div>
+          )}
+
+          {aiScore && activeTab === 'score' && (
+            <div style={{ padding: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
+                <div style={{
+                  width: 80,
+                  height: 80,
+                  borderRadius: '50%',
+                  background: `conic-gradient(#c9a84c ${aiScore.score}%, rgba(255,255,255,.1) ${aiScore.score}%)`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <div style={{
+                    width: 60,
+                    height: 60,
+                    borderRadius: '50%',
+                    background: '#13161e',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexDirection: 'column'
+                  }}>
+                    <span style={{ fontSize: 24, fontWeight: 700, color: aiScore.score >= 80 ? '#4ade80' : aiScore.score >= 60 ? '#eab308' : '#ef4444' }}>
+                      {aiScore.score}
+                    </span>
+                    <span style={{ fontSize: 10, color: 'rgba(232,228,217,.5)' }}>Score</span>
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 28, fontWeight: 700, color: aiScore.grade === 'A+' || aiScore.grade === 'A' ? '#4ade80' : '#c9a84c' }}>
+                    Grade {aiScore.grade}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'rgba(232,228,217,.5)' }}>AI Thumbnail Quality Score</div>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#c9a84c', marginBottom: 8 }}>Recommendations:</div>
+                {aiScore.recommendations.map((rec, i) => (
+                  <div key={i} style={{ fontSize: 12, color: 'rgba(232,228,217,.7)', marginBottom: 4, display: 'flex', gap: 8 }}>
+                    <span>✓</span><span>{rec}</span>
+                  </div>
+                ))}
+              </div>
+
+              {aiScore.issues.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#ef4444', marginBottom: 8 }}>Issues:</div>
+                  {aiScore.issues.map((issue, i) => (
+                    <div key={i} style={{ fontSize: 12, color: 'rgba(232,228,217,.5)', marginBottom: 4 }}>• {issue}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* RIGHT PANEL - AI Suggestions */}
+        <div className="glass" style={{ padding: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+            <span style={{ fontSize: 14, fontWeight: 600, color: "#c9a84c" }}>✨ AI Suggestions</span>
+          </div>
+
+          {!suggestions && (
+            <div style={{ textAlign: 'center', padding: '40px 10px', color: 'rgba(232,228,217,.3)' }}>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>💡</div>
+              <div style={{ fontSize: 12 }}>Generate thumbnail untuk melihat saran AI</div>
+            </div>
+          )}
+
+          {suggestions && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(232,228,217,.5)', marginBottom: 8, textTransform: 'uppercase' }}>
+                  Recommended Headlines
+                </div>
+                {suggestions.headlines?.slice(0, 3).map((h, i) => (
+                  <div
+                    key={i}
+                    onClick={() => applySuggestion('headline', h)}
+                    style={{
+                      padding: '10px',
+                      marginBottom: 8,
+                      background: 'rgba(255,255,255,.03)',
+                      border: '1px solid rgba(255,255,255,.08)',
+                      borderRadius: 6,
+                      cursor: 'pointer',
+                      transition: 'all .2s'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = '#c9a84c'}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,.08)'}
+                  >
+                    <div style={{ fontSize: 12, color: '#e8e4d9', marginBottom: 4 }}>{h.text}</div>
+                    <div style={{ fontSize: 10, color: 'rgba(232,228,217,.4)' }}>Type: {h.type} • Score: {h.score}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(232,228,217,.5)', marginBottom: 8, textTransform: 'uppercase' }}>
+                  Color Palettes
+                </div>
+                {suggestions.colors?.slice(0, 3).map((c, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '8px',
+                      marginBottom: 6,
+                      background: 'rgba(255,255,255,.03)',
+                      borderRadius: 6
+                    }}
+                  >
+                    <div style={{ display: 'flex', gap: 2 }}>
+                      <div style={{ width: 20, height: 20, borderRadius: 4, background: c.primary }} />
+                      <div style={{ width: 20, height: 20, borderRadius: 4, background: c.secondary }} />
+                      <div style={{ width: 20, height: 20, borderRadius: 4, background: c.accent }} />
+                    </div>
+                    <span style={{ fontSize: 10, color: 'rgba(232,228,217,.5)' }}>Palette {i + 1}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       </div>
